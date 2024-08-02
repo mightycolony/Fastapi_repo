@@ -1,0 +1,1 @@
+your_stdin_value_here

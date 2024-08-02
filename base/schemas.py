@@ -53,4 +53,6 @@ class os_info_all(BaseModel):
 
 class signing_pass(BaseModel):
     password: str
-    
+
+class siging_pass_encrypted(BaseModel):
+    password: str

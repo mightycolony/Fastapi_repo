@@ -4,7 +4,9 @@ from database import SessionLocal,engine
 from sqlalchemy.orm import Session
 import models
 
-router=APIRouter()
+router=APIRouter(
+    tags=['signing_key']
+)
 def get_db():
     db = SessionLocal()
     try:
@@ -12,18 +14,26 @@ def get_db():
     finally:
         db.close()
 
-
-
-async def check_pass_avail(db: Session):
+def check_pass_avail(db: Session):
     s_key = db.query(models.Sigingpass).first()
+    print(s_key)
     if s_key is None or s_key.passwd == "":
         return False
     return True
 
 @router.post("/signing_key")
-def some_route(sign: schemas.signing_pass = Depends(),db: Session = Depends(get_db),dep: None = Depends(check_pass_avail)):
+def some_route(sign: schemas.signing_pass = Depends(), db: Session = Depends(get_db)):
     sign_key = models.Sigingpass(passwd=sign.password)
     db.add(sign_key)
     db.commit()
     db.refresh(sign_key)
     return "password added"
+
+@router.get("/signing_key_get")
+def some_route(db: Session = Depends(get_db)):
+    sign_key =db.query(models.Sigingpass).first()
+    return schemas.siging_pass_encrypted(password=sign_key.passwd)
+        
+
+    
+    

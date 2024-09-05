@@ -56,3 +56,26 @@ class signing_pass(BaseModel):
 
 class siging_pass_encrypted(BaseModel):
     password: str
+    
+    
+    
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    username: str | None = None
+
+class userdata(BaseModel):
+    username: str
+    password: str
+    
+class userdata_view(BaseModel):
+    username: str
+    
+class pass_view(BaseModel):
+    password: str
+    
+class TokenData(BaseModel):
+    username: str 

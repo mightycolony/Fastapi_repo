@@ -17,3 +17,9 @@ class Sigingpass(Base):
     id = Column(Integer, primary_key=True, index=True)
     passwd = Column(String)
     
+class User(Base):
+    __tablename__ = "userdata"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String)
+    password = Column(String)
+

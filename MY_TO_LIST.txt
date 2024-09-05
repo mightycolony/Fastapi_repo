@@ -1,0 +1,16 @@
+https://en.wikipedia.org/wiki/Netfilter#
+https://medium.com/@jain.sm/network-packet-flow-in-linux-part-1-14edb8bb4a81
+https://blog.packagecloud.io/illustrated-guide-monitoring-tuning-linux-networking-stack-receiving-data/
+
+
+buildworld process
+
+>>> World build completed on Thu Aug 29 00:12:26 IST 2024
+>>> World built in 29685 seconds, ncpu: 32
+
+
+buildkernel process
+
+>>> Kernel build for GENERIC completed on Thu Aug 29 12:23:44 IST 2024
+--------------------------------------------------------------
+>>> Kernel(s)  GENERIC built in 2652 seconds, ncpu: 32

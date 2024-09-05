@@ -1,2 +1,4 @@
 sqlaclchmey
 fastapi
+jose
+passlib

@@ -10,3 +10,7 @@ print(f"Table Name : {cur.fetchall()}")
 
 cur.execute("SELECT * FROM signingpass;")
 print(f"Table Name : {cur.fetchall()}")
+
+
+cur.execute("SELECT * FROM userdata;")
+print(f"Table Name : {cur.fetchall()}")

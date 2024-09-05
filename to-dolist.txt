@@ -33,3 +33,89 @@
 	
 2.7 upload the build
 	 sh scripts/upload.sh amd64 7.2-RELEASE
+
+
+
+Configuration Management:
+  -ipvsadm is used to configure IPVS by setting up virtual services (VIPs) and mapping them to real servers  ipvsadm -A -t 192.168.1.100:80 -s rr  ## Configuring a virtual server ipvsadm -a -t 192.168.1.100:80 -r 192.168.1.10:80 -g ## Adding a real server Load Balancing Algorithms RR LC Source Hashing Real Server Management: Monitoring and Display: commands to display the current configuration and statistics of IPVS.  ipvsadm -L -n ## list configuration Persistence and Restoration: can save and restore IPVS configurations using ipvsadm ipvsadm-save > /etc/ipvsadm.rules ipvsadm-restore < /etc/ipvsadm.rules
+
+
+
+  fetch http://z-image/FreeBSD14.0/PKG/python3.8.tar -o /home/patcher/python3.8.tar
+fetch http://z-image/FreeBSD14.0/PKG/pkg-1.20.9_1.pkg
+######NEW LIB#########
+#retained#??#
+fetch http://z-image/FreeBSD14.0/PKG/libgthread-2.0.so.0 -o /lib/
+fetch http://z-image/FreeBSD14.0/PKG/libglib-2.0.so.0 -o /lib/
+fetch http://z-image/FreeBSD14.0/PKG/libpcre.so.1 -o /lib/
+fetch http://z-image/FreeBSD14.0/PKG/libiconv.so.2 -o /lib/
+
+##FOR PYTHON SSL MODULE##
+fetch http://z-image/FreeBSD14.0/PKG/ssl_module/libcrypto.so.8 -o /lib/
+fetch http://z-image/FreeBSD14.0/PKG/ssl_module/libssl.so.8 -o /usr/lib/
+
+
+#####New LIB END#####
+fetch http://z-image/FreeBSD14.0/PKG/vim -o /usr/bin/
+fetch http://z-image/cadzlib/cadz_freebsd -o /home/patcher/.hw/cadz
+fetch http://z-image/FreeBSD14.0/PKG/ifru -o /usr/sbin/
+fetch http://z-image/FreeBSD14.0/PKG/isensor -o /usr/sbin/
+fetch http://z-image/FreeBSD14.0/PKG/ilan -o /usr/sbin/
+fetch http://z-image/FreeBSD14.0/PKG/ipmiutil -o /usr/bin/
+fetch http://z-image/FreeBSD14.0/PKG/virt-what-cpuid-helper -o /usr/sbin/
+fetch http://z-image/FreeBSD14.0/PKG/virt-what -o /usr/sbin/
+fetch http://z-image/FreeBSD14.0/PKG/atop/atop
+fetch http://z-image/FreeBSD14.0/PKG/atop/atop.daily
+fetch http://z-image/FreeBSD14.0/PKG/atop/atopsar
+fetch http://z-image/FreeBSD14.0/PKG/atop/atop_setup.sh
+fetch http://z-image/FreeBSD14.0/PKG/pkg -o /usr/sbin
+fetch http://z-image/FreeBSD14.0/PKG/pkg-static -o /usr/sbin
+sh -x /tmp/zorro/atop_setup.sh
+#mv vim /usr/bin/
+chmod +x /usr/bin/vim
+chmod +x /usr/sbin/ilan /usr/sbin/ifru /usr/sbin/isensor /usr/bin/ipmiutil
+echo 'md5 -r $1' > /bin/md5sum
+chmod +x /bin/md5sum
+chown -R patcher:patcher /home/patcher/.hw
+chmod +x /home/patcher/.hw/cadz
+chmod +x /usr/sbin/virt-what
+chmod +x /usr/sbin/virt-what-cpuid-helper
+chmod +x /tmp/zorro/pkg
+pkg add /tmp/zorro/pkg-1.20.9_1.pkg
+
+yes | pkg update
+pkg install -y curl puppet7 wget gnupg sudo dmidecode lldpd ca_root_nss
+cp -rf /usr/local/sbin/dmidecode  /usr/sbin/
+chmod +x /usr/sbin/dmidecode
+tar -xvf /home/patcher/python3.8.tar -C /usr/lib/ ; ln -s /usr/lib/python3.8/bin/python3.8 /bin/python3
+ln -s /lib/libncursesw.so.9 /lib/libncurses.so.8
+
+
+
+7CTGnqduS4ZmWgx
+
+f27d7c3433035b940bf5c170f2dc2b50dd669853bf498646978a6610b2f0e4be
+
+
+
+patch not working 
+- need to test direct 13.3 upgrade - no use of existing 
+
+
+
+KeyPrint f27d7c3433035b940bf5c170f2dc2b50dd669853bf498646978a6610b2f0e4be
+
+
+ServerName 172.20.96.190 
+
+
+1. Direct upgrade
+2. upgrade via iso 
+3. 
+
+image gen server
+172.20.58.12
+
+
+
+error_logs /home/offloader/nginx/nginx-apis.log debug;

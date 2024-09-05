@@ -4,6 +4,7 @@ from database import SessionLocal,engine
 from sqlalchemy.orm import Session
 import models
 import os
+import oauth
 
 from pre_build.build_server import prerequisites
 
@@ -42,7 +43,7 @@ def create_eol(os_data: schemas.os_info, db: Session = Depends(get_db)):
 
 
 @router.get("/eol_list", tags=['EOL'], response_model=list[schemas.os_info_all])
-def get_all_eol( db: Session = Depends(get_db)):
+def get_all_eol( db: Session = Depends(get_db),current_user: schemas.userdata = Depends(oauth.get_current_user)):
     get_eol=db.query(models.osinfo).all()
     return get_eol
  

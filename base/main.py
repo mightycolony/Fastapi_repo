@@ -1,14 +1,17 @@
 from fastapi import FastAPI,HTTPException
 from  database import engine,SessionLocal
 import models
-from routers import osinfo,passw,userinfo
+from routers import osinfo,passw,userinfo,authentication
 from sqlalchemy.orm import Session
 
 
 app=FastAPI()
+
 models.Base.metadata.create_all(bind=engine)
 app.include_router(osinfo.router)
 app.include_router(userinfo.router)
+app.include_router(authentication.router)
+
 def get_db():
     db = SessionLocal()
     try:

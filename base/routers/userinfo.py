@@ -6,8 +6,13 @@ import models
 import os
 from hashing import bcrypt,get_password_hash
 from pre_build.build_server import prerequisites
+import oauth
 
-router=APIRouter()
+router = APIRouter(
+    tags=['User_Creation'],
+    dependencies=[Depends(oauth.get_current_user)]
+)
+
 builder=prerequisites()
 def get_db():
     db = SessionLocal()

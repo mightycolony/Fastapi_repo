@@ -3,10 +3,13 @@ import schemas
 from database import SessionLocal,engine
 from sqlalchemy.orm import Session
 import models
+import oauth
 
-router=APIRouter(
-    tags=['signing_key']
+router = APIRouter(
+    tags=['signing_key'],
+    dependencies=[Depends(oauth.get_current_user)]
 )
+
 def get_db():
     db = SessionLocal()
     try:

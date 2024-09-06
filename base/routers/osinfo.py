@@ -7,8 +7,11 @@ import os
 import oauth
 
 from pre_build.build_server import prerequisites
+     
+router = APIRouter(
+    dependencies=[Depends(oauth.get_current_user)]
+)
 
-router=APIRouter()
 builder=prerequisites()
 def get_db():
     db = SessionLocal()
@@ -43,7 +46,7 @@ def create_eol(os_data: schemas.os_info, db: Session = Depends(get_db)):
 
 
 @router.get("/eol_list", tags=['EOL'], response_model=list[schemas.os_info_all])
-def get_all_eol( db: Session = Depends(get_db),current_user: schemas.userdata = Depends(oauth.get_current_user)):
+def get_all_eol( db: Session = Depends(get_db)):
     get_eol=db.query(models.osinfo).all()
     return get_eol
  

@@ -1,7 +1,6 @@
 import os
 import textwrap
 import subprocess
-# Fetch the value of uname -m
 
 def date_gen(required_date):
     return os.system("date -j -f '%Y%m%d-%H%M%S' '{}' '+%s'")
@@ -61,9 +60,9 @@ export EOL={eol_in_conf}""")
     def publickey_signing_gen(self,password):
         command = ['sh', '{}/scripts/make.sh'.format(self.update_server_path)]
         process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        process.stdin.write(b'pass123\n')
-        process.stdin.flush()
-        stdout, stderr = process.communicate()
-        
+        stdout, stderr = process.communicate(input=f"{password}\n".encode())
+        print(stdout.decode())
+        print(stderr.decode())
+
 
 

@@ -101,6 +101,7 @@ export EOL={eol_in_conf}""")
         child.sendline(password)
         child.expect(pexpect.EOF)
         with open(self.pexpect_log, 'r') as cont:
+            print(cont.readlines)
             return cont.readlines()
         
     def write_public_key(self):

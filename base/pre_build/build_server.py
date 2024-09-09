@@ -1,9 +1,35 @@
 import os
 import textwrap
 import subprocess
+import pexpect
+from io import StringIO
+
 
 def date_gen(required_date):
-    return os.system("date -j -f '%Y%m%d-%H%M%S' '{}' '+%s'")
+    try:
+        result = subprocess.run(
+            ["date", "-j", "-f", "%Y%m%d-%H%M%S", required_date, "+%s"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        print(f"Error converting date: {e}")
+        return None
+def set_proxy(proxy_type, kadavu_sol):
+    command = 'echo "{}" | openssl enc -base64 -d | cut -c 4-'.format(kadavu_sol)
+    dec =  subprocess.run(command, shell=True,executable="/bin/sh",stdin=subprocess.PIPE,
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE)
+    dec_pas=dec.stdout.decode().strip()
+    os.environ[proxy_type] = 'http://zorro:{}@proxy:3128'.format(dec_pas)
+
+enc_pas="OTg5aGYyODA5OHJKZTM0aAo="
+def unset_proxy():
+   del os.environ["http_proxy"]
+   del os.environ["https_proxy"]
+
 
 class prerequisites:
     ##required path##
@@ -11,11 +37,16 @@ class prerequisites:
         self.cwd=os.getcwd()
         self.update_server_path=self.cwd+"/freebsd-update-server"  
         self.update_server_url="https://github.com/freebsd/freebsd-update-build.git"  
+        self.pexpect_log=self.cwd+"/pexpect_log.txt"
+
+        self.stream_keygen=[]
 
     def git_download(self):
         if not os.path.exists(self.update_server_path):
+            set_proxy("http_proxy",enc_pas)
+            set_proxy("https_proxy",enc_pas)
             os.system("git clone {} freebsd-update-server".format(self.update_server_url))
-    
+            unset_proxy()
     def buildconf_update(self):
         build_conf="scripts/build.conf"
         os.chdir(self.update_server_path)
@@ -35,6 +66,7 @@ class prerequisites:
         os_specific_build_path=f"{self.update_server_path}/scripts/{os_version}/amd64"
         os_specific_build_path_content_file=f"{os_specific_build_path}/build.conf"
         eol_in_conf=date_gen(eol)
+        print(eol_in_conf)
         os_specific_build_path_content = textwrap.dedent(f"""\
 export RELH={checksum} 
 export WORLDPARTS="base catpages dict doc games info manpages proflibs lib32"
@@ -58,11 +90,29 @@ export EOL={eol_in_conf}""")
                     content.writelines(os_specific_build_path_content)
 
     def publickey_signing_gen(self,password):
-        command = ['sh', '{}/scripts/make.sh'.format(self.update_server_path)]
-        process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        stdout, stderr = process.communicate(input=f"{password}\n".encode())
-        print(stdout.decode())
-        print(stderr.decode())
+        command = "sh {}/scripts/make.sh".format(self.update_server_path)
+        child = pexpect.spawn(command, encoding='utf-8', logfile=open(self.pexpect_log, 'w'))
+        print(child)
+        child.expect("password:")
+        child.logfile = None ## stops the password being logged
+        child.sendline(password)
+        child.expect("password:")
+        child.logfile = None
+        child.sendline(password)
+        child.expect(pexpect.EOF)
+        with open(self.pexpect_log, 'r') as cont:
+            return cont.readlines()
+        
+    def write_public_key(self):
+            with open(self.pexpect_log, 'r') as cont_log:
+                for line in cont_log.readlines():
+                    print(line)
+
+
+
+        
+            
+        
 
 
 

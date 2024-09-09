@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 import models
 import os
 import oauth
+from fastapi.responses import StreamingResponse
+
 
 from pre_build.build_server import prerequisites
      
@@ -88,6 +90,7 @@ def delete_eol(os_data: schemas.os_info_del, db: Session = Depends(get_db)):
 
 
 
+
 @router.get("/prerequisites",tags=['prerequisites'])
 def prerequisites (os_name_pre: str, db: Session = Depends(get_db)):
     data = db.query(models.osinfo).filter(models.osinfo.os_name == os_name_pre).first()
@@ -96,10 +99,15 @@ def prerequisites (os_name_pre: str, db: Session = Depends(get_db)):
         builder.git_download()
     if os.path.exists(builder.update_server_path):
         builder.buildconf_update()
-        builder.build_conf_gen(data.os_name,data.date_eol,data.checksum) 
+        builder.build_conf_gen(data.os_name,data.date_eol,data.checksum)
         
+    if builder.update_server_path+"/scripts/{data.os_name}/amd64/build.conf":
+            data_pass = db.query(models.Sigingpass).filter(models.Sigingpass.id == 1 ).first()
+            print("pass>>",data_pass.passwd)
+            print(builder.publickey_signing_gen(data_pass.passwd))
+            return StreamingResponse(builder.publickey_signing_gen(data_pass.passwd)), builder.write_public_key
 
-    return "prerequisites completed for {}".format(os_name_pre)
+
 
       
 

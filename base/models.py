@@ -14,8 +14,10 @@ class osinfo(Base):
     
 class Sigingpass(Base):
     __tablename__ = "signingpass"
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True,)
     passwd = Column(String)
+
+
     
 class User(Base):
     __tablename__ = "userdata"

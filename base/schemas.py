@@ -35,7 +35,7 @@ class os_info(BaseModel):
         pattern_str = r'^\d{4}-\d{2}-\d{2}$'
         if v == "string" or re.match(pattern_str, v):
             return v
-        raise ValueError('Date must be in the format YYYY-DD-MM')
+        raise ValueError('Date must be in the format YYYY-MM-DD')
 
 
 

@@ -17,7 +17,10 @@ class Sigingpass(Base):
     id = Column(Integer, primary_key=True, index=True,)
     passwd = Column(String)
 
-
+class Publickey(Base):
+    __tablename__ = "publickey"
+    id = Column(Integer, primary_key=True, index=True,)
+    pub_key = Column(String)
     
 class User(Base):
     __tablename__ = "userdata"

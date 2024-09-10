@@ -6,10 +6,10 @@ import models
 import os
 import oauth
 from fastapi.responses import StreamingResponse
-
+import sqlite3
 
 from pre_build.build_server import prerequisites
-     
+
 router = APIRouter(
     dependencies=[Depends(oauth.get_current_user)]
 )
@@ -94,6 +94,7 @@ def delete_eol(os_data: schemas.os_info_del, db: Session = Depends(get_db)):
 @router.get("/prerequisites",tags=['prerequisites'])
 def prerequisites (os_name_pre: str, db: Session = Depends(get_db)):
     target="Public key fingerprint:"
+    table_name_key="publickey" # manual entry for models - Publickey
     data = db.query(models.osinfo).filter(models.osinfo.os_name == os_name_pre).first()
     print(builder.update_server_path)
     if not os.path.exists(builder.update_server_path):
@@ -103,15 +104,27 @@ def prerequisites (os_name_pre: str, db: Session = Depends(get_db)):
         builder.build_conf_gen(data.os_name,data.date_eol,data.checksum)
     if builder.update_server_path+"/scripts/{data.os_name}/amd64/build.conf":
         data_pass = db.query(models.Sigingpass).filter(models.Sigingpass.id == 1 ).first()
-        print("pass>>",data_pass.passwd)
-        datas =  StreamingResponse(builder.publickey_signing_gen(data_pass.passwd))
+        datas =  StreamingResponse(builder.publickey_signing_gen(data_pass.passwd)) 
         with open(builder.pexpect_log,'r',encoding="utf-8") as f:
             mylist = [line.rstrip('\n') for line in f]
             print(mylist)
             for i,j in enumerate(mylist):
                if target in j:
-                    keyprint=mylist[i+1]
+                    keyvalue=mylist[i+1]
+                    checker=builder.sqlite_table_creator("check_table",table_name_key)
+                    print(checker)
+                    if checker == "no table":
+                            builder.sqlite_table_creator("create_table",table_name_key,keyvalue)
+                    if checker == False:
+                            builder.sqlite_table_creator("add_value",table_name_key,keyvalue)
+                            return "value already present!!" 
+                    else:
+                        return "key already present!"
+                                                        
         return datas
+    
+    
+
 
 
       

@@ -3,7 +3,7 @@ import textwrap
 import subprocess
 import pexpect
 from io import StringIO
-
+import sqlite3
 
 def date_gen(required_date):
     try:
@@ -38,6 +38,7 @@ class prerequisites:
         self.update_server_path=self.cwd+"/freebsd-update-server"  
         self.update_server_url="https://github.com/freebsd/freebsd-update-build.git"  
         self.pexpect_log=self.cwd+"/pexpect_log.txt"
+        self.db_name=self.cwd+"/os_info.db"   
 
         self.stream_keygen=[]
 
@@ -101,19 +102,53 @@ export EOL={eol_in_conf}""")
         child.sendline(password)
         child.expect(pexpect.EOF)
         with open(self.pexpect_log, 'r') as cont:
-            print(cont.readlines)
             return cont.readlines()
-        
-    def write_public_key(self):
-            with open(self.pexpect_log, 'r') as cont_log:
-                for line in cont_log.readlines():
-                    print(line)
 
+
+    def sqlite_table_creator(self,command,table_name,keyvalue=None):
+            conn = sqlite3.connect(self.db_name)
+            cursor = conn.cursor()
+            print(command,table_name,keyvalue)
+            match command:
+                case "create_table":
+                    create_table_query = '''
+                                CREATE TABLE IF NOT EXISTS {} (
+                                    id INTEGER PRIMARY KEY,
+                                    key TEXT NOT NULL,
+                                )
+                                '''.format(table_name)
+                    cursor.execute(create_table_query)
+                    conn.commit()
+                    conn.close()
+                    return "table created!"
+                case "add_value":
+                    insert_query = '''
+                                INSERT INTO {} (key)
+                                    VALUES (?)
+                                    '''.format(table_name)
+                    cursor.execute(insert_query, (keyvalue,))
+                    conn.commit()
+                    conn.close()
+                    return True
+                
+                case "check_table":
+                    check_empty_query = '''
+                    SELECT COUNT(*) FROM {}
+                    '''.format(table_name)
+                    
+                    try:
+                        cursor.execute(check_empty_query)
+                    except sqlite3.OperationalError as e:
+                        return "no table"
+                    result = cursor.fetchone()[0]
+                    if result == 0:
+                        return False
+                    else:
+                        return True
 
 
         
             
-        
 
 
 

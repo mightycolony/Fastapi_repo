@@ -104,29 +104,38 @@ def prerequisites (os_name_pre: str, db: Session = Depends(get_db)):
         builder.build_conf_gen(data.os_name,data.date_eol,data.checksum)
     if builder.update_server_path+"/scripts/{data.os_name}/amd64/build.conf":
         data_pass = db.query(models.Sigingpass).filter(models.Sigingpass.id == 1 ).first()
-        datas =  StreamingResponse(builder.publickey_signing_gen(data_pass.passwd)) 
-        with open(builder.pexpect_log,'r',encoding="utf-8") as f:
-            mylist = [line.rstrip('\n') for line in f]
-            print(mylist)
-            for i,j in enumerate(mylist):
-               if target in j:
-                    keyvalue=mylist[i+1]
-                    checker=builder.sqlite_table_creator("check_table",table_name_key)
-                    print(checker)
-                    if checker == "no table":
-                            builder.sqlite_table_creator("create_table",table_name_key,keyvalue)
-                    if checker == False:
-                            builder.sqlite_table_creator("add_value",table_name_key,keyvalue)
-                            return "value already present!!" 
-                    else:
-                        return "key already present!"
-                                                        
-        return datas
+        
+        if os.path.getsize(builder.pexpect_log) == 0:
+            print("datas")
+            builder.publickey_signing_gen(data_pass.passwd)
+            with open(builder.pexpect_log,'r',encoding="utf-8") as f:
+                mylist = [line.rstrip('\n') for line in f]
+                print(mylist)
+                for i,j in enumerate(mylist):
+                    if target in j:
+                            keyvalue=mylist[i+1]
+                            checker=builder.sqlite_table_creator("check_table",table_name_key)
+                            print(checker)
+                            if checker == "no table":
+                                    builder.sqlite_table_creator("create_table",table_name_key,keyvalue)
+                            if checker == False:
+                                    builder.sqlite_table_creator("add_value",table_name_key,keyvalue)
+                                    return "key value added !!" 
+                            else:
+                                return "key already present already!"   
+        else:
+            return "Public Key generated already please use /public_key to get keys"    
+        
+@router.get('/public_key',tags=['public_key'],response_model=schemas.publickey)
+def  public_key(db: Session = Depends(get_db)):
+    pub_key = db.query(models.Publickey).first()
+    return {"pubic_key": pub_key}
     
-    
 
-
-
-      
+@router.get("/build/{os_vers}")
+def get_password (os_vers: str, db: Session = Depends(get_db)):
+    if builder.update_server_path+"/scripts/{os_vers}":
+       init_op = StreamingResponse(builder.build_init(os_vers))
+    return init_op
 
     

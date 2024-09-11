@@ -2,7 +2,6 @@ import os
 import textwrap
 import subprocess
 import pexpect
-from io import StringIO
 import sqlite3
 
 def date_gen(required_date):
@@ -145,10 +144,8 @@ export EOL={eol_in_conf}""")
                         return False
                     else:
                         return True
-
-
-        
-            
-
-
-
+    
+    def build_init(self,os_vers):
+        command = "sh scripts/init.sh amd64 {}".format(os_vers)
+        result = subprocess.run(command, capture_output=True, text=True)
+        return result.stdout

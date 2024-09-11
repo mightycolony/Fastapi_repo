@@ -78,4 +78,7 @@ class pass_view(BaseModel):
     password: str
     
 class TokenData(BaseModel):
-    username: str 
+    username: str
+    
+class publickey(BaseModel):
+    key: str

@@ -3,7 +3,7 @@ import textwrap
 import subprocess
 import pexpect
 import sqlite3
-
+import re
 def date_gen(required_date):
     try:
         result = subprocess.run(
@@ -29,16 +29,28 @@ def unset_proxy():
    del os.environ["http_proxy"]
    del os.environ["https_proxy"]
 
+isopath="/home/iso/"
+def update_iso_path(file_path, iso):
+    iso_path = "/home/iso/{}".format(iso)    
+    with open(file_path, 'r', encoding='utf-8') as file:
+        lines = file.readlines()
+    
+    pattern = re.compile(r'^ISO\s*=\s*')
+   
+    with open(file_path, 'w', encoding='utf-8') as file:
+        for line in lines:
+            if pattern.match(line.strip()):
+                file.write(f"\tISO={iso_path}\n")
+            else:
+                file.write(line)
 
 class prerequisites:
-    ##required path##
     def __init__(self):
         self.cwd=os.getcwd()
         self.update_server_path=self.cwd+"/freebsd-update-server"  
         self.update_server_url="https://github.com/freebsd/freebsd-update-build.git"  
         self.pexpect_log=self.cwd+"/pexpect_log.txt"
         self.db_name=self.cwd+"/os_info.db"   
-
         self.stream_keygen=[]
 
     def git_download(self):
@@ -88,7 +100,16 @@ export EOL={eol_in_conf}""")
             if os_specific_build_path_content != old_content:
                 with open(os_specific_build_path_content_file,'w') as content:
                     content.writelines(os_specific_build_path_content)
+ 
+        if os.path.isfile(self.update_server_path+"/scripts/build.subr"):
+            for i in os.listdir(isopath):
+                if os_version in i:
+                    iso=i
+                    break
+            update_iso_path(self.update_server_path+"/scripts/build.subr", iso)
 
+
+            
     def publickey_signing_gen(self,password):
         command = "sh {}/scripts/make.sh".format(self.update_server_path)
         child = pexpect.spawn(command, encoding='utf-8', logfile=open(self.pexpect_log, 'w'))
@@ -145,7 +166,21 @@ export EOL={eol_in_conf}""")
                     else:
                         return True
     
-    def build_init(self,os_vers):
-        command = "sh scripts/init.sh amd64 {}".format(os_vers)
-        result = subprocess.run(command, capture_output=True, text=True)
-        return result.stdout
+class Builder:
+    def __init__(self):
+        self.cwd=os.getcwd()
+        self.update_server_path =self.cwd+"/freebsd-update-server"  
+
+    def build_init(self, os_vers: str) -> subprocess.Popen:
+        command = "{}/scripts/init.sh amd64 {}".format(self.update_server_path, os_vers)
+        proc = subprocess.Popen(
+            command,
+            shell=True,
+            executable="/bin/sh",
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True 
+        )
+        print(proc)
+        return proc

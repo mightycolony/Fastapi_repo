@@ -119,3 +119,11 @@ image gen server
 
 
 error_logs /home/offloader/nginx/nginx-apis.log debug;
+
+
+DOMAIN PURCHASE
+identityprotectionplus.com
+zohosolo.ca
+zohosolo.sa
+
+https://wiki.freebsd.org/PkgBase

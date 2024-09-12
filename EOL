@@ -1,0 +1,17 @@
+[
+  {
+    "os_name": "13.1-RELEASE",
+    "actual_eol": "2023-07-31",
+    "checksum": "326c7a07a393972d3fcd47deaa08e2b932d9298d96e9b4f63a17a2730f93384abc5feb1f511436dc91fcc8b6f56ed25b43dc91d9cdfc700d2655f7e35420d494"
+  },
+  {
+    "os_name": "13.2-RELEASE",
+    "actual_eol": "2024-07-31",
+    "checksum": "7c5473b9bbc5cb235329b8fa17ffb690abbae67fe5e4bb30260baa034501d3f23eba82679a9871af2f42e9600aff7e9e810a0b03005afc24962ed03945171ae1"
+  },
+  {
+    "os_name": "13.3-RELEASE",
+    "actual_eol": "2024-12-31",
+    "checksum": "b8b17580fd759ca9adc3b3983fa9bc7b6ed429c44ad2d9f4f27ec58caeca51c276635186c85b415889283b30de87ee2a53a5f3b6035d5908f6e4995fd5f70039"
+  }
+]

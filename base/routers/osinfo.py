@@ -6,9 +6,10 @@ import models
 import os
 import oauth
 from fastapi.responses import StreamingResponse
-import sqlite3
+from typing import AsyncIterator
+import asyncio
 
-from pre_build.build_server import prerequisites
+from pre_build.build_server import prerequisites,Builder
 
 router = APIRouter(
     dependencies=[Depends(oauth.get_current_user)]
@@ -128,14 +129,25 @@ def prerequisites (os_name_pre: str, db: Session = Depends(get_db)):
         
 @router.get('/public_key',tags=['public_key'],response_model=schemas.publickey)
 def  public_key(db: Session = Depends(get_db)):
-    pub_key = db.query(models.Publickey).first()
-    return {"pubic_key": pub_key}
+    key = db.query(models.Publickey).first()
+    return key
     
 
 @router.get("/build/{os_vers}")
-def get_password (os_vers: str, db: Session = Depends(get_db)):
-    if builder.update_server_path+"/scripts/{os_vers}":
-       init_op = StreamingResponse(builder.build_init(os_vers))
-    return init_op
-
+async def build_os(os_vers: str, db: Session = Depends(get_db)):
+    builder = Builder()
+    proc = builder.build_init(os_vers)
     
+    async def generate() -> AsyncIterator[str]:
+        while True:
+            chunk = await asyncio.to_thread(proc.stdout.readline)
+            if chunk == "" and proc.poll() is not None:
+                break
+            if chunk:
+                yield chunk
+                #yield chunk.decode('utf-8')  
+
+        proc.stdout.close()
+        proc.wait()
+
+    return StreamingResponse(generate(), media_type="text/plain")

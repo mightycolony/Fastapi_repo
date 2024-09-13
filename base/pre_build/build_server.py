@@ -188,8 +188,15 @@ class Builder:
         self.logdir=self.cwd+"/logs" 
         os.makedirs(self.logdir, exist_ok=True)
         self.build_init_log=self.logdir+"/build_init_log.txt"
+        self.build_approve_log=self.logdir+"/approve_log.txt"
+        self.build_upload_log=self.logdir+"/upload_log.txt"
+        
         if not os.path.isfile(self.build_init_log):
             touchfile(self.logdir,self.build_init_log)
+        if not os.path.isfile(self.build_approve_log):
+             touchfile(self.logdir,self.build_approve_log)
+        if not os.path.isfile(self.build_upload_log):
+             touchfile(self.logdir,self.build_upload_log)
            
 
     def build_init(self, os_vers: str) -> subprocess.Popen:
@@ -202,5 +209,29 @@ class Builder:
                     stderr=subprocess.STDOUT
                 
                 )
-                print(process.pid)
-
+                
+    def build_approve(self, os_vers: str):
+        target="FreeBSD/amd64 {} initialization build complete".format(os_vers)
+        with open(self.build_init_log,'r',encoding="utf-8") as f:
+            approve_list = [line.rstrip('\n') for line in f]
+            for i,j in enumerate(approve_list):
+                if target in j:
+                    return j
+        command_mount="sh {}/scripts/mountkey.sh"
+        with open(self.build_approve_log, 'w') as log_file:
+            process_mount = subprocess.Popen(
+                     command, 
+                     shell=True, 
+                     stdout=subprocess.STDOUT, 
+                     stderr=subprocess.STDOUT
+                  )
+            print(process_mount.stdout.decode())
+        command = "{}/scripts/mount.sh amd64 {} &".format(self.update_server_path, os_vers)   
+        with open(self.build_approve_log, 'w') as log_file:
+            process = subprocess.Popen(
+                     command, 
+                     shell=True, 
+                     stdout=log_file, 
+                     stderr=subprocess.STDOUT
+                  )
+                

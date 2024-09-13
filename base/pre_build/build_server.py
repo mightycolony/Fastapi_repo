@@ -4,6 +4,7 @@ import subprocess
 import pexpect
 import sqlite3
 import re
+
 def date_gen(required_date):
     try:
         result = subprocess.run(
@@ -43,13 +44,27 @@ def update_iso_path(file_path, iso):
                 file.write(f"\tISO={iso_path}\n")
             else:
                 file.write(line)
+                
+from pathlib import Path         
+def touchfile(directory, filename):
+    path = Path(directory) / filename
+    if path.exists():
+        os.utime(path, None)  
+    else:
+        path.touch()
+
+    
 
 class prerequisites:
     def __init__(self):
         self.cwd=os.getcwd()
         self.update_server_path=self.cwd+"/freebsd-update-server"  
         self.update_server_url="https://github.com/freebsd/freebsd-update-build.git"  
-        self.pexpect_log=self.cwd+"/pexpect_log.txt"
+        self.logdir=self.cwd+"/logs"
+        
+        ##logs path##
+        os.makedirs(self.logdir, exist_ok=True)
+        self.pexpect_log=self.logdir+"/pexpect_log.txt"
         self.db_name=self.cwd+"/os_info.db"   
         self.stream_keygen=[]
 
@@ -169,18 +184,23 @@ export EOL={eol_in_conf}""")
 class Builder:
     def __init__(self):
         self.cwd=os.getcwd()
-        self.update_server_path =self.cwd+"/freebsd-update-server"  
+        self.update_server_path =self.cwd+"/freebsd-update-server" 
+        self.logdir=self.cwd+"/logs" 
+        os.makedirs(self.logdir, exist_ok=True)
+        self.build_init_log=self.logdir+"/build_init_log.txt"
+        if not os.path.isfile(self.build_init_log):
+            touchfile(self.logdir,self.build_init_log)
+           
 
     def build_init(self, os_vers: str) -> subprocess.Popen:
-        command = "{}/scripts/init.sh amd64 {}".format(self.update_server_path, os_vers)
-        proc = subprocess.Popen(
-            command,
-            shell=True,
-            executable="/bin/sh",
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True 
-        )
-        print(proc)
-        return proc
+        command = "{}/scripts/init.sh amd64 {} &".format(self.update_server_path, os_vers)   
+        with open(self.build_init_log, 'w') as log_file:
+                process = subprocess.Popen(
+                    command, 
+                    shell=True, 
+                    stdout=log_file, 
+                    stderr=subprocess.STDOUT
+                
+                )
+                print(process.pid)
+

@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 from typing import AsyncIterator
 import asyncio
 
-from pre_build.build_server import prerequisites,Builder
+from pre_build.build_server import prerequisites
 
 router = APIRouter(
     dependencies=[Depends(oauth.get_current_user)]
@@ -133,21 +133,3 @@ def  public_key(db: Session = Depends(get_db)):
     return key
     
 
-@router.get("/build/{os_vers}")
-async def build_os(os_vers: str, db: Session = Depends(get_db)):
-    builder = Builder()
-    proc = builder.build_init(os_vers)
-    
-    async def generate() -> AsyncIterator[str]:
-        while True:
-            chunk = await asyncio.to_thread(proc.stdout.readline)
-            if chunk == "" and proc.poll() is not None:
-                break
-            if chunk:
-                yield chunk
-                #yield chunk.decode('utf-8')  
-
-        proc.stdout.close()
-        proc.wait()
-
-    return StreamingResponse(generate(), media_type="text/plain")

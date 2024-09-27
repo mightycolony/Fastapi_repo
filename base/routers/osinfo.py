@@ -15,7 +15,6 @@ router = APIRouter(
     dependencies=[Depends(oauth.get_current_user)]
 )
 
-builder=prerequisites()
 def get_db():
     db = SessionLocal()
     try:
@@ -93,11 +92,11 @@ def delete_eol(os_data: schemas.os_info_del, db: Session = Depends(get_db)):
 
 
 @router.get("/prerequisites",tags=['prerequisites'])
-def prerequisites (os_name_pre: str, db: Session = Depends(get_db)):
+def prerequisites_build (os_name_pre: str, db: Session = Depends(get_db)):
+    builder=prerequisites(os_name_pre)
     target="Public key fingerprint:"
     table_name_key="publickey" # manual entry for models - Publickey
     data = db.query(models.osinfo).filter(models.osinfo.os_name == os_name_pre).first()
-    print(builder.update_server_path)
     if not os.path.exists(builder.update_server_path):
         builder.git_download()
     if os.path.exists(builder.update_server_path):
@@ -105,9 +104,12 @@ def prerequisites (os_name_pre: str, db: Session = Depends(get_db)):
         builder.build_conf_gen(data.os_name,data.date_eol,data.checksum)
     if builder.update_server_path+"/scripts/{data.os_name}/amd64/build.conf":
         data_pass = db.query(models.Sigingpass).filter(models.Sigingpass.id == 1 ).first()
-        
+        print(builder.pexpect_log)
+        if not os.path.isfile(builder.pexpect_log):
+                with open(builder.pexpect_log,'w') as p:
+                    pass
+        print("going to write data")
         if os.path.getsize(builder.pexpect_log) == 0:
-            print("datas")
             builder.publickey_signing_gen(data_pass.passwd)
             with open(builder.pexpect_log,'r',encoding="utf-8") as f:
                 mylist = [line.rstrip('\n') for line in f]

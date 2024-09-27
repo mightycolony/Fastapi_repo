@@ -25,7 +25,7 @@ def set_proxy(proxy_type, kadavu_sol):
     dec_pas=dec.stdout.decode().strip()
     os.environ[proxy_type] = 'http://zorro:{}@proxy:3128'.format(dec_pas)
 
-enc_pas="OTg5aGYyODA5OHJKZTM0aAo="
+enc_pas="NTIwaVlpbW0xZ2gK"
 def unset_proxy():
    del os.environ["http_proxy"]
    del os.environ["https_proxy"]
@@ -46,8 +46,8 @@ def update_iso_path(file_path, iso):
                 file.write(line)
                 
 from pathlib import Path         
-def touchfile(directory, filename):
-    path = Path(directory) / filename
+def touchfile(filename):
+    path = Path(filename)
     if path.exists():
         os.utime(path, None)  
     else:
@@ -56,11 +56,11 @@ def touchfile(directory, filename):
     
 
 class prerequisites:
-    def __init__(self):
+    def __init__(self,os_vers):
         self.cwd=os.getcwd()
         self.update_server_path=self.cwd+"/freebsd-update-server"  
         self.update_server_url="https://github.com/freebsd/freebsd-update-build.git"  
-        self.logdir=self.cwd+"/logs"
+        self.logdir=self.cwd+"/logs/{}".format(os_vers)
         
         ##logs path##
         os.makedirs(self.logdir, exist_ok=True)
@@ -69,10 +69,9 @@ class prerequisites:
         self.stream_keygen=[]
 
     def git_download(self):
-        if not os.path.exists(self.update_server_path):
             set_proxy("http_proxy",enc_pas)
             set_proxy("https_proxy",enc_pas)
-            os.system("git clone {} freebsd-update-server".format(self.update_server_url))
+            subprocess.run(["git", "clone", self.update_server_url, "freebsd-update-server"], check=True)
             unset_proxy()
     def buildconf_update(self):
         build_conf="scripts/build.conf"
@@ -102,6 +101,7 @@ export SOURCEPARTS="base bin contrib crypto etc games gnu include krb5  /\
                     \n\t\t ubin usbin cddl"
 export KERNELPARTS="generic"
 export EOL={eol_in_conf}""")
+        
         if  not os.path.exists(os_specific_build_path):
             os.makedirs(os_specific_build_path)
         if not os.path.isfile(os_specific_build_path_content_file) or os.path.getsize(os_specific_build_path_content_file) == 0:
@@ -127,8 +127,7 @@ export EOL={eol_in_conf}""")
             
     def publickey_signing_gen(self,password):
         command = "sh {}/scripts/make.sh".format(self.update_server_path)
-        child = pexpect.spawn(command, encoding='utf-8', logfile=open(self.pexpect_log, 'w'))
-        print(child)
+        child = pexpect.spawn(command, encoding='utf-8', logfile=open(self.pexpect_log, 'a'))
         child.expect("password:")
         child.logfile = None ## stops the password being logged
         child.sendline(password)
@@ -143,7 +142,6 @@ export EOL={eol_in_conf}""")
     def sqlite_table_creator(self,command,table_name,keyvalue=None):
             conn = sqlite3.connect(self.db_name)
             cursor = conn.cursor()
-            print(command,table_name,keyvalue)
             match command:
                 case "create_table":
                     create_table_query = '''
@@ -182,56 +180,95 @@ export EOL={eol_in_conf}""")
                         return True
     
 class Builder:
-    def __init__(self):
+    def __init__(self,os_vers):
         self.cwd=os.getcwd()
         self.update_server_path =self.cwd+"/freebsd-update-server" 
-        self.logdir=self.cwd+"/logs" 
+        self.logdir=self.cwd+"/logs/{}/".format(os_vers)
         os.makedirs(self.logdir, exist_ok=True)
-        self.build_init_log=self.logdir+"/build_init_log.txt"
-        self.build_approve_log=self.logdir+"/approve_log.txt"
-        self.build_upload_log=self.logdir+"/upload_log.txt"
+        self.build_init_log = os.path.join(self.logdir, "build_init_log.txt")
+        self.build_approve_log = os.path.join(self.logdir, "approve_log.txt")
+        self.mount_log = os.path.join(self.logdir, "mount_log.txt")
+        self.build_upload_log = os.path.join(self.logdir, "upload_log.txt")
+        self.approval_txt = os.path.join(self.logdir, "approval.txt")
         
-        if not os.path.isfile(self.build_init_log):
-            touchfile(self.logdir,self.build_init_log)
-        if not os.path.isfile(self.build_approve_log):
-             touchfile(self.logdir,self.build_approve_log)
-        if not os.path.isfile(self.build_upload_log):
-             touchfile(self.logdir,self.build_upload_log)
-           
+        log_files = [
+            self.build_init_log,
+            self.build_approve_log,
+            self.mount_log,
+            self.build_upload_log,
+            self.approval_txt
+        ]
+        
+        for log_file in log_files:
+            if not os.path.isfile(log_file):
+                touchfile(log_file)
+                
+
+                
 
     def build_init(self, os_vers: str) -> subprocess.Popen:
-        command = "{}/scripts/init.sh amd64 {} &".format(self.update_server_path, os_vers)   
-        with open(self.build_init_log, 'w') as log_file:
-                process = subprocess.Popen(
-                    command, 
-                    shell=True, 
-                    stdout=log_file, 
-                    stderr=subprocess.STDOUT
+        if not os.path.isdir(self.update_server_path):
+            command = "{}/scripts/init.sh amd64 {} &".format(self.update_server_path, os_vers)   
+            with open(self.build_init_log, 'a') as log_file:
+                    process = subprocess.Popen(
+                        command, 
+                        shell=True, 
+                        stdout=log_file, 
+                        stderr=subprocess.STDOUT
+                    
+                    )
                 
-                )
+    def build_approve(self, os_vers: str,password):
+        ###Mounting key##
+        def mount_key(password):
+            try:
+                command = "{}/scripts/mountkey.sh".format(self.update_server_path, os_vers)   
+                child = pexpect.spawn(command, encoding='utf-8', logfile=open(self.mount_log, 'a'))
+                child.expect("password:")
+                child.logfile = None ## stops the password being logged
+                child.sendline(password)
+                child.expect(pexpect.EOF)
+            except Exception as e:
+                if child.exitstatus == 1:
+                    return child.before.strip()
                 
-    def build_approve(self, os_vers: str):
-        target="FreeBSD/amd64 {} initialization build complete".format(os_vers)
-        with open(self.build_init_log,'r',encoding="utf-8") as f:
-            approve_list = [line.rstrip('\n') for line in f]
-            for i,j in enumerate(approve_list):
-                if target in j:
-                    return j
-        command_mount="sh {}/scripts/mountkey.sh"
-        with open(self.build_approve_log, 'w') as log_file:
-            process_mount = subprocess.Popen(
-                     command, 
-                     shell=True, 
-                     stdout=subprocess.STDOUT, 
-                     stderr=subprocess.STDOUT
-                  )
-            print(process_mount.stdout.decode())
-        command = "{}/scripts/mount.sh amd64 {} &".format(self.update_server_path, os_vers)   
-        with open(self.build_approve_log, 'w') as log_file:
-            process = subprocess.Popen(
-                     command, 
-                     shell=True, 
-                     stdout=log_file, 
-                     stderr=subprocess.STDOUT
-                  )
-                
+        mount_key(password)
+        if os.path.isfile(self.update_server_path+"/base/freebsd-update-server/work/{}/amd64/tag.new".format(os_vers)):
+            command_approve = "{}/scripts/approve.sh amd64 {} &".format(self.update_server_path, os_vers)   
+            with open(self.build_approve_log, 'a') as log_file:
+                            process = subprocess.Popen(
+                                command_approve, 
+                                shell=True, 
+                                stdout=log_file, 
+                                stderr=subprocess.STDOUT
+                            
+                            ) 
+            with open(self.approval_txt,'w') as p:
+                p.write("approved")
+            return True
+        else:
+            with open(self.approval_txt,'w') as p:
+                p.write("not approved")
+            return "There is no release ready for approval"
+
+
+    def upload(self, os_vers: str,password):
+        with open(self.approval_txt,'r') as n:
+            print(type(n.readlines()))
+            if n.readlines() == "approved":
+                try:
+                    command = "{}/scripts/upload.sh".format(self.update_server_path, os_vers)   
+                    child = pexpect.spawn(command, encoding='utf-8', logfile=open(self.build_upload_log, 'a'))
+                    child.expect("password:")
+                    child.logfile = None
+                    child.sendline(password)
+                    child.expect("password:")
+                    child.logfile = None
+                    child.sendline(password)
+                    child.expect(pexpect.EOF)
+                except Exception as e:
+                    if child.exitstatus == 1:
+                        return child.before.strip()
+                return True
+            else:
+                return False

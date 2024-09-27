@@ -13,7 +13,6 @@ router = APIRouter(
     dependencies=[Depends(oauth.get_current_user)]
 )
 
-builder=prerequisites()
 def get_db():
     db = SessionLocal()
     try:

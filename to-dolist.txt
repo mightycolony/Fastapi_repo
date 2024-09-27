@@ -1,77 +1,243 @@
-1. git clone > done
+#!/bin/sh -x
+geom disk list | grep "Geom name:" | cut -d ':' -f 2 | tr -d ' ' > /tmp/diskinfo
+for i in `cat /tmp/diskinfo`
+   do
+        geom disk list $i | grep descr >> /tmp/disktype
+        geom disk list $i | grep -iw Mediasize | awk '{print $3}' | sed 's/(//g' | sed 's/)//g' | sed 's/G//g' >> /tmp/disksize
+        DISKSIZE=`cat /tmp/disksize`
+        DISKTYPE=`cat /tmp/disktype`
+        if echo $DISKSIZE | grep "T" ; then
+               DEVICE=$i
+                echo "Installation proceeding in Physical HDD" >> /root/log.txt
+                echo "Selected Disk is $DEVICE and Size of the Disk is $DISKSIZE" >> /root/log.txt
+        else
+                 if echo $DISKTYPE | grep "QEMU\|null"
+                        then
+                                DEVICE=$i
+                                echo "Selected Disk is $DEVICE and Size of the Disk is $DISKSIZE" >> /root/log.txt
+                else
+                        HDDSIZE=`geom disk list $i | grep -iw Mediasize | awk '{print $3}' | sed 's/(//g' | sed 's/)//g' | sed 's/G//g'`
+                        if [ $HDDSIZE -gt 300 ]
+                        then
+                                DEVICE=$i
+                        fi
+                fi
 
-
-2. option for every release 
-
-2.1 need to updated in scripts/build.conf  > done
-     2.1.1 location for iso can be done manually via build.subr
-     2.1.2 keyshould be rsa
-     2.1.3 masteraccount root
-     2.1.4 remote or local
-     
-2.2 scripts/13.1-RELEASE/amd64
-  EOL and checksum of the os needs to updated
-  EOL date -> date -j -f '%Y%m%d-%H%M%S' '20090401-000000' '+%s'
-  
- 
- 
-2.3 build update code
-   2.3.1 inital code gen and getting public key finger print
-   2.3.2 setting root password
-   
-   
-2.5 start the build update
-
-1 .scripts/init.sh amd64 7.2-RELEASE 
-2. display the output (not possible in fastapi ??)
-
-
-2.6 
-- mount the key and approve
-	sh scripts/mountkey.sh
-	sh -e scripts/approve.sh amd64 7.2-RELEASE
-	
-2.7 upload the build
-	 sh scripts/upload.sh amd64 7.2-RELEASE
+        fi
+   done
 
 
 
-Configuration Management:
-  -ipvsadm is used to configure IPVS by setting up virtual services (VIPs) and mapping them to real servers  ipvsadm -A -t 192.168.1.100:80 -s rr  ## Configuring a virtual server ipvsadm -a -t 192.168.1.100:80 -r 192.168.1.10:80 -g ## Adding a real server Load Balancing Algorithms RR LC Source Hashing Real Server Management: Monitoring and Display: commands to display the current configuration and statistics of IPVS.  ipvsadm -L -n ## list configuration Persistence and Restoration: can save and restore IPVS configurations using ipvsadm ipvsadm-save > /etc/ipvsadm.rules ipvsadm-restore < /etc/ipvsadm.rules
+dd if=/dev/zero of=/dev/$DEVICE count=1 bs=512
+PARTITIONS="$DEVICE { 50G freebsd-ufs /, 8G freebsd-swap, 50G freebsd-ufs /tmp, auto freebsd-ufs /home }"
+
+DISTRIBUTIONS="kernel.txz base.txz"
+BSDINSTALL_DISTDIR=/tmp
+BSDINSTALL_DISTSITE=http://ftp.freebsd.org/pub/FreeBSD/releases/amd64/13-RELEASE
+
+### DETECTING PRIMARY AND SECONDARY INTERFACE ###
+#!/bin/sh
+echo "I: Detecting primary and secondary network interfaces"
+netif0=""
+for interface in bge0 igb0 em0 re0 vtnet0 ix0 ixl0 mce0 iavf0
+do
+    ifexists=`ifconfig $interface`
+    if [ "$ifexists" != "" ]
+    then
+        netif0=$interface
+        break
+    fi
+done
+netif1=""
+for interface in bge1 igb1 em1 re1 vtnet1 ix1 ixl1 mce1 ivaf1
+do
+    ifexists=`ifconfig $interface`
+    if [ "$ifexists" != "" ]
+    then
+        netif1=$interface
+        break
+    fi
+done
+
+############# Boot loader entries ##
+echo "autoboot_delay=\"5\"" >> /boot/loader.conf
+echo "if_lagg_load=\"YES\"" >> /boot/loader.conf
+echo "ipmi_load=\"YES\"" >> /boot/loader.conf
+
+
+######Sysctl parameters##############
+echo "kern.ipc.nmbclusters=200000
+net.inet.ip.portrange.randomized=0
+net.inet.ip.portrange.first=1024
+net.inet.ip.portrange.last=65535
+net.inet.tcp.hostcache.expire=3900
+net.inet.tcp.mssdflt=1448
+net.inet.tcp.experimental.initcwnd10=1
+net.inet.tcp.fast_finwait2_recycle=1
+net.inet.tcp.msl=5000
+net.inet.tcp.keepidle=60000
+net.inet.tcp.keepintvl=10000
+net.inet.tcp.sendspace=65536
+kern.ipc.maxsockets=65536
+net.inet.icmp.drop_redirect=1
+net.inet.icmp.log_redirect=0
+kern.ipc.somaxconn = 4096
+kern.maxfiles = 165000
+kern.maxfilesperproc = 160000" >> /etc/sysctl.conf
+
+
+###DC SPECIFIC CONF#### 
+cd /tmp/
+fetch http://z-image/FreeBSD13.3/dc_specific/config
+sh -x /tmp/config
+source /tmp/variables
+
+###MI KEY ###
+fetch http://z-image/FreeBSD13.3/PKG/zac_mi_keybased_auth.sh
+sh -x /tmp/zac_mi_keybased_auth.sh
+
+##CHECKING IF THE SERVER IS VM OR PHY ###
+geom disk list | grep "Geom name:" | cut -d ':' -f 2 | tr -d ' ' > /tmp/diskinfo
+for i in `cat /tmp/diskinfo`
+   do
+        geom disk list $i | grep descr >> /tmp/disktype
+done
+DISKTYPE=`cat /tmp/disktype`
+if echo $DISKTYPE | grep "QEMU\|null"
+    then
+        SERVERTYPE=VM
+else
+        SERVERTYPE=PHY
+fi
+
+######## MLX CHECK ####
+output=$(/usr/sbin/pciconf -lv | grep ethernet -B4 | grep class= | cut -d@ -f1)
+newop=$(echo "$output"| sed 's/"/ /g' | tr '\n' ' ')
+count=1
+mlxname_start() {
+    set -- $newop
+    echo "ifconfig_$1=\"up\""  >> /etc/rc.conf
+    echo "ifconfig_$2=\"up\"" >> /etc/rc.conf
+    echo "cloned_interfaces=\"lagg0\"" >> /etc/rc.conf
+    echo "ifconfig_lagg0=\"laggproto failover laggport $1 laggport $2 DHCP\"" >> /etc/rc.conf
+}
 
 
 
-  fetch http://z-image/FreeBSD14.0/PKG/python3.8.tar -o /home/patcher/python3.8.tar
-fetch http://z-image/FreeBSD14.0/PKG/pkg-1.20.9_1.pkg
+####NETWORK CONFIGURATIONS ###
+BONDMODE=`cat /tmp/bondmode`
+icount=`/sbin/ifconfig | grep media | wc -l`
+ifconfig | grep inet | grep mask | grep -v "127.0.0.1" | awk '{print $2}' | head -n 1 > /root/ip.txt
+echo "hostname=\"`cat /root/ip.txt`\"" >> /etc/rc.conf
+echo "fsck_y_enable=\"YES\"" >> /etc/rc.conf
+echo "sshd_enable=\"YES\"" >> /etc/rc.conf
+echo "sendmail_enable=NONE" >> /etc/rc.conf
+echo cron_flags=\"-m \'\'\" >> /etc/rc.conf
+if [ "$SERVERTYPE" = "PHY" ]; then
+	if [ "$netif0" = "mce0" ] && [ "$netif1" = "mce1" ]; then
+           mkdir -p /usr/local/etc/rc.d/
+           fetch http://z-image/FreeBSD13.3/PKG/mlxname -o /usr/local/etc/rc.d/mlxname
+           chmod ug+x /usr/local/etc/rc.d/mlxname
+           echo "mlxname_enable=\"YES\"" >> /etc/rc.conf
+           mlxname_start
+        else
+          echo "ifconfig_$netif0=\"up\"" >> /etc/rc.conf
+          echo "ifconfig_$netif1=\"up\"" >> /etc/rc.conf
+          echo "cloned_interfaces=\"lagg0\"" >> /etc/rc.conf
+          echo "ifconfig_lagg0=\"laggproto $BONDMODE laggport $netif0 laggport $netif1 DHCP\"" >> /etc/rc.conf
+
+        fi
+elif [ "$SERVERTYPE" = "VM" ]  &&  [ $icount -ge 2 ] ; then
+	if [ "$netif0" = "mce0" ] && [ "$netif1" = "mce1" ]; then
+	   mkdir -p /usr/local/etc/rc.d/
+           fetch http://z-image/FreeBSD13.3/PKG/mlxname -o /usr/local/etc/rc.d/mlxname
+           chmod ug+x /usr/local/etc/rc.d/mlxname
+           echo "mlxname_enable=\"YES\"" >> /etc/rc.conf
+           mlxname_start
+	else
+        	mkdir -p /usr/local/etc/rc.d/
+        	fetch http://z-image/FreeBSD13.3/PKG/ethname -o /usr/local/etc/rc.d/ethname
+        	chmod ug+x /usr/local/etc/rc.d/ethname
+        	sed -i '' '/ifconfig/d' /etc/rc.conf
+        	sed -i '' '/ethname/d' /etc/rc.conf
+        	echo "ifconfig_eth0=\"up\"" >> /etc/rc.conf
+        	echo "ifconfig_eth1=\"up\"" >> /etc/rc.conf
+        	echo "cloned_interfaces=\"lagg0\"" >> /etc/rc.conf
+        	echo "ifconfig_lagg0=\"laggproto failover laggport eth0 laggport eth1 DHCP\"" >> /etc/rc.conf
+        	echo "ethname_enable=\"YES\"" >> /etc/rc.conf
+	fi
+else
+        echo ifconfig_$netif0="up" >> /etc/rc.conf
+	echo "cloned_interfaces=\"lagg0\"" >> /etc/rc.conf
+        echo "ifconfig_lagg0=\"laggproto $BONDMODE laggport $netif0 DHCP\"" >> /etc/rc.conf
+fi
+
+##Permitting Root login
+sed -i .bk 's/\#PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config
+
+## hw dir on patcher home
+mkdir /home/patcher/.hw
+
+############Tempfs partition
+mkdir -p /tempfs
+echo "tmpfs   /tempfs tmpfs   rw,size=50m,mode=7000       0" >> /etc/fstab
+
+######## Nginx log files rotation and cron##############n
+echo "/home/offloader/logs/error.log                    644     30      51200   *       JC      /home/offloader/logs/nginx.pid      30
+/home/offloader/logs/nginx-timing-access.log        644     100      51200   *       JC      /home/offloader/logs/nginx.pid      30
+/home/offloader/logs/nginx-servercheck-access.log   644     30      51200   *       JC      /home/offloader/logs/nginx.pid      30"  >> /etc/newsyslog.conf
+echo "###to get the data from nginx memory and post it to LbmoN
+* * * * * sh /home/offloader/nginx/monitoring/L7Stats.sh
+
+######### Nginx log files rotation ###########
+* * * * * /usr/sbin/newsyslog -C 
+
+###### To run atop ##########################
+
+1 0 * * * /etc/atop/atop.daily" >> /var/cron/tabs/root
+
+### To stop sendmail creates more mail queue files
+echo "root: /dev/null" >> /etc/mail/aliases
+
+###PACKAGE DOWNLOAND AND INSTALLATION##
+### INSTALLATION VIA REPO #####
+echo "FreeBSD: {    url: "http://z-image/FreeBSD_PKG/FreeBSD13_PKG/overall_pkg",
+                    enabled: yes }" > /etc/pkg/FreeBSD.conf
+###############################
+
+mkdir -p /tmp/zorro/
+cd /tmp/zorro/
+fetch http://z-image/FreeBSD13.3/PKG/python3.8.tar -o /home/patcher/python3.8.tar
+fetch http://z-image/FreeBSD13.3/PKG/pkg-1.20.9_1.pkg
 ######NEW LIB#########
 #retained#??#
-fetch http://z-image/FreeBSD14.0/PKG/libgthread-2.0.so.0 -o /lib/
-fetch http://z-image/FreeBSD14.0/PKG/libglib-2.0.so.0 -o /lib/
-fetch http://z-image/FreeBSD14.0/PKG/libpcre.so.1 -o /lib/
-fetch http://z-image/FreeBSD14.0/PKG/libiconv.so.2 -o /lib/
+fetch http://z-image/FreeBSD13.3/PKG/libgthread-2.0.so.0 -o /lib/
+fetch http://z-image/FreeBSD13.3/PKG/libglib-2.0.so.0 -o /lib/
+fetch http://z-image/FreeBSD13.3/PKG/libpcre.so.1 -o /lib/
+fetch http://z-image/FreeBSD13.3/PKG/libiconv.so.2 -o /lib/
 
 ##FOR PYTHON SSL MODULE##
-fetch http://z-image/FreeBSD14.0/PKG/ssl_module/libcrypto.so.8 -o /lib/
-fetch http://z-image/FreeBSD14.0/PKG/ssl_module/libssl.so.8 -o /usr/lib/
+fetch http://z-image/FreeBSD13.3/PKG/ssl_module/libcrypto.so.8 -o /lib/
+fetch http://z-image/FreeBSD13.3/PKG/ssl_module/libssl.so.8 -o /usr/lib/
 
 
 #####New LIB END#####
-fetch http://z-image/FreeBSD14.0/PKG/vim -o /usr/bin/
+fetch http://z-image/FreeBSD13.3/PKG/vim -o /usr/bin/
 fetch http://z-image/cadzlib/cadz_freebsd -o /home/patcher/.hw/cadz
-fetch http://z-image/FreeBSD14.0/PKG/ifru -o /usr/sbin/
-fetch http://z-image/FreeBSD14.0/PKG/isensor -o /usr/sbin/
-fetch http://z-image/FreeBSD14.0/PKG/ilan -o /usr/sbin/
-fetch http://z-image/FreeBSD14.0/PKG/ipmiutil -o /usr/bin/
-fetch http://z-image/FreeBSD14.0/PKG/virt-what-cpuid-helper -o /usr/sbin/
-fetch http://z-image/FreeBSD14.0/PKG/virt-what -o /usr/sbin/
-fetch http://z-image/FreeBSD14.0/PKG/atop/atop
-fetch http://z-image/FreeBSD14.0/PKG/atop/atop.daily
-fetch http://z-image/FreeBSD14.0/PKG/atop/atopsar
-fetch http://z-image/FreeBSD14.0/PKG/atop/atop_setup.sh
-fetch http://z-image/FreeBSD14.0/PKG/pkg -o /usr/sbin
-fetch http://z-image/FreeBSD14.0/PKG/pkg-static -o /usr/sbin
+fetch http://z-image/FreeBSD13.3/PKG/ifru -o /usr/sbin/
+fetch http://z-image/FreeBSD13.3/PKG/isensor -o /usr/sbin/
+fetch http://z-image/FreeBSD13.3/PKG/ilan -o /usr/sbin/
+fetch http://z-image/FreeBSD13.3/PKG/ipmiutil -o /usr/bin/
+fetch http://z-image/FreeBSD13.3/PKG/virt-what-cpuid-helper -o /usr/sbin/
+fetch http://z-image/FreeBSD13.3/PKG/virt-what -o /usr/sbin/
+fetch http://z-image/FreeBSD13.3/PKG/atop/atop
+fetch http://z-image/FreeBSD13.3/PKG/atop/atop.daily
+fetch http://z-image/FreeBSD13.3/PKG/atop/atopsar
+fetch http://z-image/FreeBSD13.3/PKG/atop/atop_setup.sh
+fetch http://z-image/FreeBSD13.3/PKG/pkg-1.16.3.txz
+
 sh -x /tmp/zorro/atop_setup.sh
-#mv vim /usr/bin/
+mv vim /usr/bin/
 chmod +x /usr/bin/vim
 chmod +x /usr/sbin/ilan /usr/sbin/ifru /usr/sbin/isensor /usr/bin/ipmiutil
 echo 'md5 -r $1' > /bin/md5sum
@@ -80,8 +246,9 @@ chown -R patcher:patcher /home/patcher/.hw
 chmod +x /home/patcher/.hw/cadz
 chmod +x /usr/sbin/virt-what
 chmod +x /usr/sbin/virt-what-cpuid-helper
-chmod +x /tmp/zorro/pkg
-pkg add /tmp/zorro/pkg-1.20.9_1.pkg
+tar -xvf pkg-1.16.3.txz
+cd usr/local/sbin/
+./pkg-static add /tmp/zorro/pkg-1.20.9_1.pkg
 
 yes | pkg update
 pkg install -y curl puppet7 wget gnupg sudo dmidecode lldpd ca_root_nss
@@ -92,38 +259,92 @@ ln -s /lib/libncursesw.so.9 /lib/libncurses.so.8
 
 
 
-7CTGnqduS4ZmWgx
+##SUDO ACCESS#######
 
-f27d7c3433035b940bf5c170f2dc2b50dd669853bf498646978a6610b2f0e4be
+fetch http://z-image/FreeBSD13.3/PKG/patcher-KVMCMDS -o /usr/local/etc/sudoers.d/
+
+########## sudoers file entry#########
+echo "## Runas alias specification
+Cmnd_Alias DMIDECODE = /usr/sbin/dmidecode -t system, /usr/sbin/dmidecode -t chassis, /usr/sbin/dmidecode -t memory, /usr/sbin/dmidecode -t processor
+Cmnd_Alias IPMIUTILS = /usr/sbin/ilan print, /usr/sbin/ifru, /usr/sbin/isensor
+Cmnd_Alias CHRONYCMDS = /usr/local/sbin/chronyc
+Cmnd_Alias LLDP = /usr/sbin/service lldpd onestart, /usr/sbin/service lldpd onestop, /usr/sbin/service lldpd onestatus, /usr/local/sbin/lldpctl, /usr/local/sbin/lldpctl -f keyvalue *, /sbin/geom -t , /sbin/geom disk list, /sbin/camcontrol identify *
+
+## User privilege specification####
+patcher ALL=(ALL) NOPASSWD: IPMIUTILS,DMIDECODE,CHRONYCMDS,LLDP"  >> /usr/local/etc/sudoers
+
+### PUPPET INSTALLTION #####
+
+grep -q puppet_enable /etc/rc.conf || echo puppet_enable=\"YES\" >> /etc/rc.conf
+cat > /usr/local/etc/puppet/puppet.conf <<EOF
+[main]
+server=z-puppet
+ca_server=z-puppet-ca
+report=true
+runinterval=7200
+EOF
+service puppet enabled; service puppet start
+#### PUPPET INSTALLTION ENDS##
+
+###PERIODIC CONF ########
+sed -i '' 's|^periodic_conf_files=.*|periodic_conf_files="/etc/defaults/custom_periodic.conf /etc/periodic.conf /etc/periodic.conf.local ${_localbase}/etc/periodic.conf"|' /etc/defaults/periodic.conf
+
+###Stop sending the daily report status mail to root##
+cat <<EOF >> /etc/defaults/custom_periodic.conf
+### Stop sending the daily report status mail to root ###
+daily_output="/dev/null"
+weekly_output="/dev/null"
+monthly_output="/dev/null"
+
+## Disable mailqueue checking ##
+daily_status_mailq_enable="NO"
+daily_status_mailq_shorten="NO"
+daily_status_include_submit_mailq="NO"
+
+## Stop the mailqueue re-run ##
+daily_queuerun_enable="NO"
+daily_submit_queuerun="NO"
+
+## Stop sending the security report status mail to root ##
+daily_status_security_output="/dev/null"
+weekly_status_security_output="/dev/null"
+monthly_status_security_output="/dev/null"
+EOF
 
 
+###CHRONY INSTALLATION IN CLIENT
+fetch http://z-image/FreeBSD13.3/PKG/chrony/chrony.conf -o /etc/chrony.conf
+fetch http://z-image/FreeBSD13.3/PKG/chrony/chrony.keys -o /etc/chrony.keys
+fetch http://z-image/FreeBSD13.3/PKG/chrony/chronyc -o /usr/local/sbin/chronyc
+fetch http://z-image/FreeBSD13.3/PKG/chrony/chronyd -o /usr/local/sbin/chronyd
+fetch http://z-image/FreeBSD13.3/PKG/chrony/rc_chronyd -o /etc/rc.d/chronyd
+chmod 555 /etc/rc.d/chronyd
+mkdir /var/db/chrony
+chown daemon /var/db/chrony
+chmod +x /usr/local/sbin/chronyc
+chmod +x /usr/local/sbin/chronyd
+service chronyd enable
+service chronyd start
 
-patch not working 
-- need to test direct 13.3 upgrade - no use of existing 
+################ INSTALL QEMU_GUEST_AGENT ONLY IN VM ## (NOT IN PHY)
 
+if [ "$SERVERTYPE" != "PHY" ]; then
+cd /tmp/zorro/
+fetch http://z-image/FreeBSD13.3/PKG/qemu/qemu-ga -o /usr/bin/
+fetch http://z-image/FreeBSD13.3/PKG/qemu/qemu-guest-agent -o /etc/rc.d/
+fetch http://z-image/FreeBSD13.3/PKG/qemu/qemu-ga.sh
+chmod +x /usr/bin/qemu-ga /etc/rc.d/qemu-guest-agent
+sh -x qemu-ga.sh
+fi
 
+######### OS INSTALL DATE AND TIME LOG###
+echo "OS installed on `date` -- Setup done" >> /root/log.txt
+echo "Setup done."
 
-KeyPrint f27d7c3433035b940bf5c170f2dc2b50dd669853bf498646978a6610b2f0e4be
-
-
-ServerName 172.20.96.190 
-
-
-1. Direct upgrade
-2. upgrade via iso 
-3. 
-
-image gen server
-172.20.58.12
-
-
-
-error_logs /home/offloader/nginx/nginx-apis.log debug;
-
-
-DOMAIN PURCHASE
-identityprotectionplus.com
-zohosolo.ca
-zohosolo.sa
-
-https://wiki.freebsd.org/PkgBase
+###REBOOT THE PHY SERVER AND SHUTDOWN THE VM SERVR
+if [ "$SERVERTYPE" = "VM" ]; then
+shutdown -p now
+else
+reboot
+fi
+####################### 
